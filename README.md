@@ -6,3 +6,5 @@
 [![Build Status](https://cloud.drone.io/api/badges/Drakkar-Software/OctoBot-Backtesting/status.svg)](https://cloud.drone.io/Drakkar-Software/OctoBot-Backtesting)
 
 OctoBot backtesting engine package.
+
+Development documentation: [architecture and workflows](docs/ayu-develop.md) ([HTML](docs/ayu-develop.html)), [uv development](docs/development.md), and [validation evidence](docs/validation.md).
