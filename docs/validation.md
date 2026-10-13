@@ -1,5 +1,11 @@
 # OctoBot-Backtesting maintenance validation
 
+<!-- current-documentation-provenance -->
+Documentation reviewed: 2026-10-13 · Git source base: `00614352fbe4789f0791762aba9ead0883ae52ad` · [Current architecture and feature guide](ayu-develop.md).
+Historical execution commands/results below retain their original dates and scope; this metadata update is not a new application test run.
+<!-- /current-documentation-provenance -->
+
+
 Recorded 2026-10-12T01:32:43.644464+08:00. Branch `feature/ayu_develop`; upstream default `upstream/master` is merged: **true**. Branch/tag synchronization records are retained in the workspace maintenance evidence. Feature branch publication is coordinated separately.
 
 Runtime: **CPython 3.15.0**, uv **0.13.0**, build backend `hatchling.build`. Python 3.15.0 installs the complete environment.

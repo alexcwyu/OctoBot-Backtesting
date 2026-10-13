@@ -1,135 +1,213 @@
-# OctoBot-Backtesting: architecture and development
+# OctoBot-Backtesting: workflow, design and architecture
 
-Backtesting imports historical market/social data and advances channel producers using a simulated clock. It supplies data collection and replay infrastructure; the strategy and exchange simulation are supplied by the surrounding OctoBot runtime.
+Updated: **2026-10-13**
+Reviewed Git hash: `00614352fbe4789f0791762aba9ead0883ae52ad`
+Branch: `feature/ayu_develop`
+Source diff SHA256: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+Scope: **Historical replay toolkit** / Maintenance: **companion**
+Languages: Python
 
-## Components and boundaries
+[HTML edition](ayu-develop.html) / [Development](development.md) / [Historical validation](validation.md) / [Full system comparison](../../docs/index.html)
 
-Backtesting owns replay initialization and lifecycle. ChannelsManager coordinates producers and consumers, while the time channel controls when historical events become visible. DataImporter implementations read storage records; DataCollector implementations capture live or historical records. Format enums and converters keep import/collection compatible without exposing file schema details to strategy callers.
+## Purpose and scope
 
+Load exchange data files and advance a synchronized simulated clock for OctoBot trading/evaluator hosts.
+
+## Features and support boundaries
+
+Native = implemented here. Integration = supplied through a named host/API. Limited = material restriction. Not provided = evidenced scope exclusion. Unverified = support/absence not established. Not applicable = outside this artifact type.
+
+| Capability | Status | Implementation and limits | Source |
+|---|---|---|---|
+| Backtesting | Native | Historical files and SQLite importers feed a synchronized timestamp-driven replay session. | [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) / [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37)) / [ExchangeDataImporter.get_ohlcv](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L132](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L132)) / [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) |
+| Live execution | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Paper trading | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Event driven | Native | Historical files and SQLite importers feed a synchronized timestamp-driven replay session. | [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) / [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37)) / [ExchangeDataImporter.get_ohlcv](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L132](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L132)) / [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) |
+| Vectorized | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Order management | Integration | These are supplied by host trading/evaluator packages consuming replay channels, not implemented by replay clock. | [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82)) / [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) |
+| Order types | Integration | These are supplied by host trading/evaluator packages consuming replay channels, not implemented by replay clock. | [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82)) / [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) |
+| Multi venue | Limited | Session accepts multiple exchange IDs and files; host supplies venue-specific trading behavior. | [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) / [Backtesting.create_importers](../src/octobot_backtesting/backtesting.py) ([L97](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L97)) |
+| Crypto | Integration | Exchange-oriented replay integrates OctoBot host; market semantics and exchange implementations are external. | [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37)) |
+| Equities | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Futures | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Options | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Forex | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Strategy api | Integration | These are supplied by host trading/evaluator packages consuming replay channels, not implemented by replay clock. | [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82)) / [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) |
+| Optimization | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Machine learning | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Reinforcement learning | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Portfolio | Integration | These are supplied by host trading/evaluator packages consuming replay channels, not implemented by replay clock. | [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82)) / [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) |
+| Risk management | Integration | These are supplied by host trading/evaluator packages consuming replay channels, not implemented by replay clock. | [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82)) / [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) |
+| Performance analytics | Integration | These are supplied by host trading/evaluator packages consuming replay channels, not implemented by replay clock. | [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82)) / [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) |
+| Historical data | Native | Historical files and SQLite importers feed a synchronized timestamp-driven replay session. | [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) / [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37)) / [ExchangeDataImporter.get_ohlcv](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L132](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L132)) / [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) |
+| Streaming data | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Persistence | Native | Historical files and SQLite importers feed a synchronized timestamp-driven replay session. | [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) / [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37)) / [ExchangeDataImporter.get_ohlcv](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L132](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L132)) / [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) |
+| Data pipeline | Native | Historical files and SQLite importers feed a synchronized timestamp-driven replay session. | [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) / [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37)) / [ExchangeDataImporter.get_ohlcv](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L132](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L132)) / [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) |
+| Web ui | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Cli | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Monitoring | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Extension api | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Native acceleration | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+| Distributed execution | Unverified | Representative source review did not establish this capability; no claim of absence. | Not applicable to this repository scope. |
+
+## System components
+
+| Component | Responsibility | Source |
+|---|---|---|
+| Replay session | Owns exchange/matrix identities and imported files. | [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) |
+| Simulated time | Publishes and advances replay timestamps. | [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) |
+| Exchange data import | Reads typed historical database tables. | [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37)) |
+| Preloaded candle cache | Shares cached candle managers among replay consumers. | [BacktestData.get_preloaded_candles_manager](../src/octobot_backtesting/backtest_data.py) ([L23](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtest_data.py#L23)) |
+| Synchronized channels | Coordinates producer priorities and iteration completion. | [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82)) |
+
+## Architecture and component boundaries
+
+The component view summarizes inspected responsibility boundaries. Arrows identify the documented API/data dependencies; this is not a deployment-readiness claim.
 
 ```mermaid
 flowchart LR
-  A0["Historical files"]
-  A1["Importer and description"]
-  A2["Simulated clock"]
-  A3["Prioritized channels"]
-  A4["Consumer replay"]
-  A0 --> A1
-  A1 --> A2
-  A2 --> A3
-  A3 --> A4
+  N0["Replay session"]
+  N1["Simulated time"]
+  N2["Exchange data import"]
+  N3["Preloaded candle cache"]
+  N4["Synchronized channels"]
+  N0 -->|"Creates replay clock producer."| N1
+  N0 -->|"Loads configured files."| N2
+  N1 -->|"Awaits channel iteration before time advances."| N4
+  N3 -->|"Fetches historical candles via file importer."| N2
 ```
 
-The following class view names implementation classes. Cross-package types are supplied by the host ecosystem; arrows describe inheritance or usage, not copied ownership.
+- Creates replay clock producer.: [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45))
+- Loads configured files.: [Backtesting.create_importers](../src/octobot_backtesting/backtesting.py) ([L97](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L97))
+- Awaits channel iteration before time advances.: [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34))
+- Fetches historical candles via file importer.: [BacktestData.get_preloaded_candles_manager](../src/octobot_backtesting/backtest_data.py) ([L23](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtest_data.py#L23))
+
+## Design decisions
+
+| Decision | Rationale | Tradeoff | Evidence |
+|---|---|---|---|
+| Synchronize channels before advancing time. | Keeps simulated callbacks on a shared historical clock. | Replay waits for participating producer processing rather than evaluating all trades as a vectorized portfolio kernel. | [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) |
+
+## Class and interface relationships
 
 ```mermaid
 classDiagram
-  class Backtesting
-  class ChannelsManager
-  class DataImporter
-  class DataCollector
-  Backtesting --> ChannelsManager : coordinates
-  Backtesting --> DataImporter : loads
-  DataCollector ..> DataImporter : compatible files
+  class N0["Backtesting"] {
+    <<class>>
+    +initialize()
+    +create_importers()
+    +start_time_updater()
+  }
+  class N1["TimeUpdater"] {
+    <<class>>
+    +start()
+    +run()
+    +modify()
+  }
+  class N2["ExchangeDataImporter"] {
+    <<class>>
+    +initialize()
+    +get_ohlcv()
+  }
+  class N3["BacktestData"] {
+    <<class>>
+    +initialize()
+    +get_preloaded_candles_manager()
+  }
+  class N4["ChannelsManager"] {
+    <<class>>
+    +handle_new_iteration()
+  }
+  N0 *-- N1 : Constructs time_updater during initialize.
+  N0 ..> N2 : Creates historical file importers through importer utility.
+  N1 *-- N4 : Creates ChannelsManager on start.
 ```
 
-## Runtime workflow
+Each node is a reviewed source symbol. Function/module nodes are explicitly labeled; they do not imply Python classes. Only reviewed relationships are drawn.
 
-Select files and requested symbols/time frames, inspect their descriptions, create importers, initialize time/channel managers, replay data in timestamp order, and stop all resources. Collectors perform the inverse path: obtain exchange or social data, normalize it, write a data file, and finalize the export.
+- **Backtesting** (class): [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45))
+- **TimeUpdater** (class): [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34))
+- **ExchangeDataImporter** (class): [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37))
+- **BacktestData** (class): [BacktestData.get_preloaded_candles_manager](../src/octobot_backtesting/backtest_data.py) ([L23](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtest_data.py#L23))
+- **ChannelsManager** (class): [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82))
+
+## Workflow
+
+### Host historical replay
+
+Host integration supplies trading decisions, orders and final analytics; this toolkit is not a standalone broker engine.
+
+```mermaid
+flowchart TD
+  W0["Host supplies exchange/matrix IDs and historical data files."]
+  W1["Load metadata and query historical candles."]
+  W0 --> W1
+  W2["Push current simulated timestamp."]
+  W1 --> W2
+  W3["Complete synchronized callbacks then advance replay time."]
+  W2 --> W3
+```
+
+1. Host supplies exchange/matrix IDs and historical data files.. [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) / [Backtesting.create_importers](../src/octobot_backtesting/backtesting.py) ([L97](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L97))
+2. Load metadata and query historical candles.. [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37)) / [ExchangeDataImporter.get_ohlcv](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L132](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L132))
+3. Push current simulated timestamp.. [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34))
+4. Complete synchronized callbacks then advance replay time.. [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) / [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82))
+
+## Sequence
+
+Replay iteration
+
 
 
 ```mermaid
 sequenceDiagram
-  participant Caller
-  participant P1 as Importer and description
-  participant P2 as Simulated clock
-  participant P3 as Prioritized channels
-  Caller->>P1: Configure context and inputs
-  P1->>P2: Initialize owned components
-  P2->>P3: Process observation or command
-  P3-->>P2: Result and state update
-  P2-->>Caller: Report or event
-  Caller->>P1: Stop and release resources
+  participant N0 as TimeUpdater
+  participant N1 as ChannelsManager
+  participant N2 as Backtesting
+  N2->>N0: Initialize updater and run replay
+  N0->>N1: handle_new_iteration(current_timestamp)
+  N0->>N0: Check end and next_timestamp after callbacks
 ```
 
-This sequence is an architectural view of responsibility and resource ownership. Individual plugin, connector, and strategy implementations can add asynchronous events and error branches. The lifecycle below is a conceptual operating workflow, rather than a claim that every component has one shared state enum.
+- Initialize updater and run replay: [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45))
+- handle_new_iteration(current_timestamp): [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) / [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82))
+- Check end and next_timestamp after callbacks: [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34))
 
-```mermaid
-stateDiagram-v2
-  [*] --> Configured
-  Configured --> Initialized: validate inputs
-  Initialized --> Processing: start
-  Processing --> Processing: next data or event
-  Processing --> Stopping: finish or cancel
-  Initialized --> Stopping: initialization error
-  Stopping --> Closed: release owned resources
-  Closed --> [*]
-```
+## Strengths and limits
 
-## Features and extension points
+### Strengths
 
-Historical and live exchange collectors; social data collectors/importers; timestamp-controlled replay; channel priority synchronization; data-file descriptions; converter APIs and explicit incompatibility errors.
+- Reusable importer mapping and preloaded candle managers avoid forcing each replay consumer to re-read files. [Backtesting.create_importers](../src/octobot_backtesting/backtesting.py) ([L97](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L97)) / [BacktestData.get_preloaded_candles_manager](../src/octobot_backtesting/backtest_data.py) ([L23](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtest_data.py#L23))
 
-Extend the owning component behind its existing public interface. Keep metadata and configuration alongside plugin/strategy resources. Exchange-specific behavior belongs in an adapter; strategy decisions belong in the strategy/evaluator layer; persistence schema and migrations belong with the storage implementation. Review the source map below before changing a boundary, and exercise the existing tests associated with that boundary.
+### Limitations
 
-## Packaging and dependency design
+- Accurate price-timeframe mode requires importer full-timeframe candle history; missing coverage returns false. [Backtesting.use_accurate_price_time_frame](../src/octobot_backtesting/backtesting.py) ([L65](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L65))
 
-Uses the sibling Commons source through uv, keeping the shared resource/API corrections in the actual installed environment. Existing 19 tests exercise the public replay and collector paths; Python 3.15 is usable.
+## Validation scope
 
-The lock records exact package versions, hashes, platform markers, and local source mappings. Path sources deliberately bind related repositories in this workspace; clone sibling repositories at the documented names before synchronization. Published packaging metadata describes public dependencies, while uv source settings select this development workspace. Resolve dependency changes with uv lock --upgrade and retain the generated lock, then verify the same locked environment.
+The linked validation and command records preserve actual historical runs and user-authorized exclusions. This source/document review does not rerun application tests, establish live trading readiness or rank benchmark performance. Current data, credential and runtime prerequisites remain material.
 
-```mermaid
-flowchart LR
-  Source["src/octobot_backtesting"] --> Backend["PEP 517 build backend"]
-  Metadata["pyproject.toml"] --> Backend
-  Lock["uv.lock"] --> Env["Managed Python environment"]
-  Backend --> Wheel["Wheel and sdist"]
-  Env --> Existing["Existing tests"]
-  Source --> Existing
-  Wheel --> Inspect["Inspect modules and resources"]
-```
-
-## Maintenance workflow
-
-All upstream branches and tags are fetched. Fork updates use nonforce pushes; a divergent branch is merged without erasing fork history. The default branch is merged into feature/ayu_develop with package/resource conflicts reconciled in their installed locations. Build and test evidence is recorded before a local maintenance commit. Feature branch publication is a separate root-level action.
-
-```mermaid
-flowchart TD
-  F["Fetch upstream branches and tags"] --> C["Compare fork refs"]
-  C --> M["Nonforce ref sync and default merge"]
-  M --> L["uv lock --upgrade"]
-  L --> P["Try managed Python 3.15"]
-  P --> Q{"All required dependencies build?"}
-  Q -->|yes| S["Sync complete environment"]
-  Q -->|no| B["Record evidence and select supported fallback"]
-  B --> S
-  S --> W["Build wheel and sdist"]
-  W --> T["Run existing tests and compile"]
-  T --> R["Record failures, fixes, and exact results"]
-  R --> D["Render MD and HTML documentation"]
-  D --> G["Commit locally on feature/ayu_develop"]
-```
-
-No existing test assertions are removed and no new test cases are introduced in this maintenance pass. Corrected fixtures preserve coverage while making paths, corruption inputs, and resource cleanup compatible with the selected interpreter. A failed test or unsupported dependency is reported explicitly in [validation](validation.md); package build success does not imply strategy correctness, profitability, or successful live connectivity.
+[Repository validation](validation.md) / [Executed checks](maintenance/index.md)
 
 ## Source map
 
-| Source | Responsibility and location |
-| --- | --- |
-| [backtesting.py](../src/octobot_backtesting/backtesting.py) | src/octobot_backtesting/backtesting.py |
-| [channels_manager.py](../src/octobot_backtesting/channels_manager.py) | src/octobot_backtesting/channels_manager.py |
-| [backtest_data.py](../src/octobot_backtesting/backtest_data.py) | src/octobot_backtesting/backtest_data.py |
-| [data_importer.py](../src/octobot_backtesting/importers/data_importer.py) | src/octobot_backtesting/importers/data_importer.py |
-| [exchange_importer.py](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) | src/octobot_backtesting/importers/exchanges/exchange_importer.py |
-| [data_collector.py](../src/octobot_backtesting/collectors/data_collector.py) | src/octobot_backtesting/collectors/data_collector.py |
-| [exchange_collector.py](../src/octobot_backtesting/collectors/exchanges/exchange_collector.py) | src/octobot_backtesting/collectors/exchanges/exchange_collector.py |
-| [data_file_manager.py](../src/octobot_backtesting/data/data_file_manager.py) | src/octobot_backtesting/data/data_file_manager.py |
-| [time_manager.py](../src/octobot_backtesting/time/time_manager.py) | src/octobot_backtesting/time/time_manager.py |
-| [backtesting.py](../src/octobot_backtesting/api/backtesting.py) | src/octobot_backtesting/api/backtesting.py |
-| [pyproject.toml](../pyproject.toml) | pyproject.toml |
-| [uv.lock](../uv.lock) | uv.lock |
-| [README.md](../README.md) | README.md |
+| Reviewed symbol/path | Inspected responsibility | Actual file SHA256 |
+|---|---|---|
+| [Backtesting.initialize](../src/octobot_backtesting/backtesting.py) ([L45](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L45)) | Constructs TimeManager, synchronized TimeChannel and TimeUpdater. | `79a15bfb766a2d5602d4598598a41b91443a263132799fc9a2aaa91c7fe8ede2` |
+| [Backtesting.create_importers](../src/octobot_backtesting/backtesting.py) ([L97](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L97)) | Reuses supplied importer mapping or constructs importer for each historical file. | `79a15bfb766a2d5602d4598598a41b91443a263132799fc9a2aaa91c7fe8ede2` |
+| [TimeUpdater.start](../src/octobot_backtesting/time/channel/time_updater.py) ([L34](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/time/channel/time_updater.py#L34)) | Pushes timestamp, awaits synchronous channel callbacks, checks completion and advances timestamp before next iteration. | `93686d7f61aef19a9b921533efa6e0a3cd323ce4c3d8e5e424bfe1733c5d6582` |
+| [ExchangeDataImporter.initialize](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L37](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L37)) | Loads SQLite description, exchange name, symbols, timeframes and available data tables. | `39b2f10d13132f4dfd7c49eab5163d4092b3d8957aae2f1f4d8d109b127af539` |
+| [ExchangeDataImporter.get_ohlcv](../src/octobot_backtesting/importers/exchanges/exchange_importer.py) ([L132](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/importers/exchanges/exchange_importer.py#L132)) | Reads filtered OHLCV table through database adapter and converts rows. | `39b2f10d13132f4dfd7c49eab5163d4092b3d8957aae2f1f4d8d109b127af539` |
+| [BacktestData.get_preloaded_candles_manager](../src/octobot_backtesting/backtest_data.py) ([L23](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtest_data.py#L23)) | Looks up and caches preloaded historical candles managers by exchange/symbol/timeframe. | `0102d93b884dfa9f9d673110a50c0227916535ab851298b0758787dcb99d3b2c` |
+| [ChannelsManager.handle_new_iteration](../src/octobot_backtesting/channels_manager.py) ([L82](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/channels_manager.py#L82)) | Runs synchronized producer processing for current simulated iteration. | `dd2085c08d5f10960b8a9329e92e0863be424eec1d90c3457fec2be33893b523` |
+| [Backtesting.use_accurate_price_time_frame](../src/octobot_backtesting/backtesting.py) ([L65](https://github.com/alexcwyu/OctoBot-Backtesting/blob/00614352fbe4789f0791762aba9ead0883ae52ad/src/octobot_backtesting/backtesting.py#L65)) | Returns false if any importer lacks all-timeframe candle history, otherwise uses supplied backtest data accuracy setting or true. | `79a15bfb766a2d5602d4598598a41b91443a263132799fc9a2aaa91c7fe8ede2` |
 
-## Further reading
+## Documentation provenance
 
-Use [development.md](development.md) for reproducible commands and [validation.md](validation.md) for exact interpreter, dependency, build, test, and blocker evidence. The equivalent [HTML architecture document](ayu-develop.html) supports browsing and rendered diagrams.
+Review date: 2026-10-13. Full committed source HEAD: `00614352fbe4789f0791762aba9ead0883ae52ad`. Template version: 2. 5 source files were independently hashed for this guide.
+
+[Evidence catalog](../../docs/systems-2026-10-13/catalog.json) / [Standard template](../../docs/guidelines/APP_TEMPLATE.md)
+
+- Read-only source audit of inventory HEAD 00614352fbe4789f0791762aba9ead0883ae52ad; no runtime execution, credential check or live-production assertion. Existing validation records remain separate historical evidence.
+- Inspected implementation/configuration coverage: src/octobot_backtesting/backtesting.py, src/octobot_backtesting/time/channel/time_updater.py, src/octobot_backtesting/importers/exchanges/exchange_importer.py, src/octobot_backtesting/backtest_data.py, src/octobot_backtesting/channels_manager.py
+- Source symbols and call chains are representative coverage, not exhaustive connector, strategy or product certification. Integration statuses identify dependencies that supply the runtime behavior.
